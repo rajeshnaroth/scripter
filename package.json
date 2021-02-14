@@ -1,0 +1,14 @@
+{
+  "name": "logicproscripter",
+  "version": "1.0.0",
+  "description": "Scripts for logic pro scripter",
+  "scripts": {
+    "start": "echo This is a Logic Prox Scripter Plugin Script",
+    "build": "rollup -c"
+  },
+  "author": "Rajesh Naroth",
+  "license": "ISC",
+  "devDependencies": {
+    "rollup": "^2.39.0"
+  }
+}
