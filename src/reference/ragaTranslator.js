@@ -1,4 +1,5 @@
 "use strict";
+import { ragaIndex } from "./helpers";
 
 const ragaList = [
   "1. Kanakangi",
@@ -161,32 +162,6 @@ function chromaToRagaNote(pitch, root) {
   const swaramOffset = currentRaga.scale[getSwaramIndex(pitch, root)];
   const firstNoteInOctave = Math.floor((pitch - root) / 12) * 12 + swaramOffset;
   return sanitizePitch(firstNoteInOctave + root);
-}
-
-function noteArea(pitch) {
-  const note = sanitizePitch(pitch) % NNOTES;
-  if (note === 0) {
-    return NOTE_AREA_SA;
-  }
-  if (note === 7) {
-    return NOTE_AREA_PA;
-  }
-  if (note < 5) {
-    return NOTE_AREA_RIGA;
-  }
-  if (note < 7) {
-    return NOTE_AREA_MA;
-  }
-  return NOTE_AREA_DANI;
-}
-
-function ragaIndex(head, ma, tail) {
-  // just in case, sanitize input
-  ma = ma % 2;
-  head = head % 6;
-  tail = tail % 6;
-  const index = ma * NRAGAS_HALF + head * 6 + tail;
-  return index >= 0 && index < ragaMap.length ? index : 0;
 }
 
 // Interface
