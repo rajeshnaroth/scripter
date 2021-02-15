@@ -39,8 +39,13 @@ function getSwaramIndex(pitch, root) {
   return swaramIndexMap[note];
 }
 
-function westernToRagaNote(pitch, root, currentRaga) {
-  const swaramOffset = currentRaga.scale[getSwaramIndex(pitch, root)];
+function westernToRagaNote(pitch, root, currentRaga, skippedNotes) {
+  let swaraIndex = getSwaramIndex(pitch, root);
+  const skipSwara = Boolean(skippedNotes[swaraIndex]);
+  if (skipSwara) {
+    swaraIndex = (swaraIndex + 1) % 7;
+  }
+  const swaramOffset = currentRaga.scale[swaraIndex];
   const firstNoteInOctave = Math.floor((pitch - root) / 12) * 12 + swaramOffset;
   return sanitizePitch(firstNoteInOctave + root);
 }
@@ -128,6 +133,18 @@ const paOffset = [7];
 const daOffset = [8, 8, 8, 9, 9, 10];
 const niOffset = [9, 10, 11, 10, 11, 11];
 
+// A visual representation of the 12 notes
+function getLayout(scale, skipList) {
+  const scaleLayout = new Array(12).fill(0).map((_note, index) => {
+    const swaraIndex = scale.findIndex((noteIndex) => noteIndex === index);
+    const skipSwara = swaraIndex > 0 && Boolean(skipList[swaraIndex]);
+    // Trace(`[${swaraIndex}]= ${skipList[swaraIndex]} skip ${skipSwara}`);
+    return skipSwara || swaraIndex < 0 ? "--" : swarams[swaraIndex];
+  });
+
+  return scaleLayout.join(" ");
+}
+
 // Construct all Melakartha Raga Map
 const ragaMap = ragaNames.map((ragaName, index) => {
   const maSection = Math.floor(index / NRAGAS_HALF);
@@ -142,16 +159,11 @@ const ragaMap = ragaNames.map((ragaName, index) => {
     daOffset[daNiSection],
     niOffset[daNiSection],
   ];
-  // A visual representation of the 12 notes
-  const scaleLayout = new Array(12).fill(0).map((_note, index) => {
-    const swaraIndex = scale.findIndex((noteIndex) => noteIndex === index);
-    return swaraIndex < 0 ? "--" : swarams[swaraIndex];
-  });
 
   return {
     name: ragaName,
-    scale: scale,
-    layout: scaleLayout.join(" "),
+    scale,
+    getLayout: ((s) => (skipList) => getLayout(s, skipList))(scale),
   };
 });
 

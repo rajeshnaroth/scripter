@@ -54,8 +54,13 @@ function getRagaIndex(head, ma, tail) {
   return ma * NRAGAS_HALF + head * 6 + tail;
 }
 
-function westernToRagaNote(pitch, root, currentRaga) {
-  const swaramOffset = currentRaga.scale[getSwaramIndex(pitch, root)];
+function westernToRagaNote(pitch, root, currentRaga, skippedNotes) {
+  let swaraIndex = getSwaramIndex(pitch, root);
+  const skipSwara = Boolean(skippedNotes[swaraIndex]);
+  if (skipSwara) {
+    swaraIndex = (swaraIndex + 1) % 7;
+  }
+  const swaramOffset = currentRaga.scale[swaraIndex];
   const firstNoteInOctave = Math.floor((pitch - root) / 12) * 12 + swaramOffset;
   return sanitizePitch(firstNoteInOctave + root);
 }
@@ -143,6 +148,18 @@ const paOffset = [7];
 const daOffset = [8, 8, 8, 9, 9, 10];
 const niOffset = [9, 10, 11, 10, 11, 11];
 
+// A visual representation of the 12 notes
+function getLayout(scale, skipList) {
+  const scaleLayout = new Array(12).fill(0).map((_note, index) => {
+    const swaraIndex = scale.findIndex((noteIndex) => noteIndex === index);
+    const skipSwara = swaraIndex > 0 && Boolean(skipList[swaraIndex]);
+    // Trace(`[${swaraIndex}]= ${skipList[swaraIndex]} skip ${skipSwara}`);
+    return skipSwara || swaraIndex < 0 ? "--" : swarams[swaraIndex];
+  });
+
+  return scaleLayout.join(" ");
+}
+
 // Construct all Melakartha Raga Map
 const ragaMap = ragaNames.map((ragaName, index) => {
   const maSection = Math.floor(index / NRAGAS_HALF);
@@ -157,25 +174,26 @@ const ragaMap = ragaNames.map((ragaName, index) => {
     daOffset[daNiSection],
     niOffset[daNiSection],
   ];
-  // A visual representation of the 12 notes
-  const scaleLayout = new Array(12).fill(0).map((_note, index) => {
-    const swaraIndex = scale.findIndex((noteIndex) => noteIndex === index);
-    return swaraIndex < 0 ? "--" : swarams[swaraIndex];
-  });
 
   return {
     name: ragaName,
-    scale: scale,
-    layout: scaleLayout.join(" "),
+    scale,
+    getLayout: ((s) => (skipList) => getLayout(s, skipList))(scale),
   };
 });
 
 const CONTROL_ROOT = 0;
 const LABEL_RAGA_NAME = 1;
-const CONTROL_HEAD = 2;
-const CONTROL_MID = 3;
-const CONTROL_TAIL = 4;
-const LABEL_RAGA_LAYOUT = 5;
+const LABEL_RAGA_LAYOUT = 2;
+const CONTROL_HEAD = 3;
+const CONTROL_MID = 4;
+const CONTROL_TAIL = 5;
+const CONTROL_SKIP_RI = 6;
+const CONTROL_SKIP_GA = 7;
+const CONTROL_SKIP_MA = 8;
+const CONTROL_SKIP_PA = 9;
+const CONTROL_SKIP_DA = 10;
+const CONTROL_SKIP_NI = 11;
 
 const isControl = (control) => control !== LABEL_RAGA_NAME && control != LABEL_RAGA_LAYOUT;
 
@@ -183,8 +201,9 @@ const headNames = ["R1-G1 Weird", "R1-G2 Arabic", "R1-G3 Gaulam", "R2-G2 Minor",
 const tailNames = ["D1-N1 Weird", "D1-N2 Arabic", "D1-N3 Gaulam", "D2-N2 Minor", "D2-N3 Major", "D3-N3 Jazz"];
 
 // globals
-var controlValues = [-1, 0, 4, 0, 4, -1];
+var controlValues = [-1, -1, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0];
 var currentRaga = ragaMap[0];
+var paramsToggle = true;
 
 function setCurrentRaga(index) {
   currentRaga = ragaMap[index];
@@ -193,13 +212,17 @@ function setCurrentRaga(index) {
 // Scripter global
 var PluginParameters = [
   {
-    name: "Root Note",
+    name: "Shruthi / Root Note",
     type: "menu",
     valueStrings: rootNotes,
     defaultValue: controlValues[CONTROL_ROOT],
   },
   {
-    name: "Raga aka Scale",
+    name: "Melakartha Raga / Base Scale",
+    type: "text",
+  },
+  {
+    name: "Swara Positions",
     type: "text",
   },
   {
@@ -221,8 +244,34 @@ var PluginParameters = [
     defaultValue: controlValues[CONTROL_TAIL],
   },
   {
-    name: "Swara Positions",
-    type: "text",
+    name: "Skip Ri",
+    type: "checkbox",
+    defaultValue: controlValues[CONTROL_SKIP_RI],
+  },
+  {
+    name: "Skip Ga",
+    type: "checkbox",
+    defaultValue: controlValues[CONTROL_SKIP_GA],
+  },
+  {
+    name: "Skip Ma",
+    type: "checkbox",
+    defaultValue: controlValues[CONTROL_SKIP_MA],
+  },
+  {
+    name: "Skip Pa",
+    type: "checkbox",
+    defaultValue: controlValues[CONTROL_SKIP_PA],
+  },
+  {
+    name: "Skip Da",
+    type: "checkbox",
+    defaultValue: controlValues[CONTROL_SKIP_DA],
+  },
+  {
+    name: "Skip Ni",
+    type: "checkbox",
+    defaultValue: controlValues[CONTROL_SKIP_NI],
   },
 ];
 
@@ -236,21 +285,29 @@ function ParameterChanged(param, value) {
   const ragaNumber = getRagaIndex(controlValues[CONTROL_HEAD], controlValues[CONTROL_MID], controlValues[CONTROL_TAIL]);
   setCurrentRaga(ragaNumber);
   const label = "Raga-" + currentRaga.name;
-
+  paramsToggle = !paramsToggle;
   // Trace("Param Changed " + label + ":" + currentRaga.layout);
   PluginParameters[LABEL_RAGA_NAME].name = label;
-  PluginParameters[LABEL_RAGA_LAYOUT].name = currentRaga.layout;
+  PluginParameters[LABEL_RAGA_LAYOUT].name = currentRaga.getLayout(getSkippedNotes());
 }
 
-function getRagaName() {
-  return PluginParameters[LABEL_RAGA_NAME].name;
+function getParamsToggle() {
+  return paramsToggle;
 }
 
 function getRoot() {
   return controlValues[CONTROL_ROOT];
 }
 
-let oldLabel = "";
+function getSkippedNotes() {
+  return [0, ...controlValues.slice(6)];
+}
+
+/* global UpdatePluginParameters, NoteOn, Trace */
+
+let prevParamsToggle = false;
+let lastPitch = -1;
+let ascending = true;
 
 // Scripter global
 var NeedsTimingInfo = true; // required to trigger ProcessMidi
@@ -258,20 +315,22 @@ var NeedsTimingInfo = true; // required to trigger ProcessMidi
 // Scripter API
 function ProcessMIDI() {
   // Update Raga Labels if params have changed
-  if (oldLabel !== getRagaName()) {
-    oldLabel = getRagaName();
-    // Trace("Update label to " + oldLabel);
+  if (prevParamsToggle !== getParamsToggle()) {
+    prevParamsToggle = getParamsToggle();
+    Trace("Update label to " + prevParamsToggle);
     UpdatePluginParameters();
   }
 }
 
 // Scripter API
 function HandleMIDI(event) {
-  // ßevent.trace();
-  // Trace(toNoteName(event.pitch));
+  if (event instanceof NoteOn) {
+    ascending = event.pitch > lastPitch;
+    lastPitch = event.pitch;
+  }
   const root = getRoot();
-  event.pitch = westernToRagaNote(event.pitch, root, currentRaga);
-  // Trace("Root=" + root + ",Current=" + event.pitch + ", New=" + westernToRagaNote(event.pitch, root));
+  event.pitch = westernToRagaNote(event.pitch, root, currentRaga, getSkippedNotes());
+  Trace(`Root=${root} Current=${lastPitch} New=${event.pitch} Ascending=${ascending}`);
   event.send();
 }
 
@@ -279,6 +338,8 @@ function HandleMIDI(event) {
 function Idle() {
   console.flush();
 }
+
+/* global Trace */
 
 // Thes following lines are needed to force rollup to include
 // all necessary Scripter funcitons and globals

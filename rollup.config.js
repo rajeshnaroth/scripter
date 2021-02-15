@@ -15,4 +15,12 @@ export default [
       name: "bundle",
     },
   },
+  {
+    input: "./src/pan-delay/main.js",
+    output: {
+      file: "./dist/pan-delay.js",
+      format: "cjs",
+      name: "bundle",
+    },
+  },
 ];

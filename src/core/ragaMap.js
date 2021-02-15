@@ -83,6 +83,18 @@ const paOffset = [7];
 const daOffset = [8, 8, 8, 9, 9, 10];
 const niOffset = [9, 10, 11, 10, 11, 11];
 
+// A visual representation of the 12 notes
+function getLayout(scale, skipList) {
+  const scaleLayout = new Array(12).fill(0).map((_note, index) => {
+    const swaraIndex = scale.findIndex((noteIndex) => noteIndex === index);
+    const skipSwara = swaraIndex > 0 && Boolean(skipList[swaraIndex]);
+    // Trace(`[${swaraIndex}]= ${skipList[swaraIndex]} skip ${skipSwara}`);
+    return skipSwara || swaraIndex < 0 ? "--" : swarams[swaraIndex];
+  });
+
+  return scaleLayout.join(" ");
+}
+
 // Construct all Melakartha Raga Map
 export const ragaMap = ragaNames.map((ragaName, index) => {
   const maSection = Math.floor(index / NRAGAS_HALF);
@@ -97,15 +109,10 @@ export const ragaMap = ragaNames.map((ragaName, index) => {
     daOffset[daNiSection],
     niOffset[daNiSection],
   ];
-  // A visual representation of the 12 notes
-  const scaleLayout = new Array(12).fill(0).map((_note, index) => {
-    const swaraIndex = scale.findIndex((noteIndex) => noteIndex === index);
-    return swaraIndex < 0 ? "--" : swarams[swaraIndex];
-  });
 
   return {
     name: ragaName,
-    scale: scale,
-    layout: scaleLayout.join(" "),
+    scale,
+    getLayout: ((s) => (skipList) => getLayout(s, skipList))(scale),
   };
 });
