@@ -2,9 +2,9 @@ import { rootNotes } from "../core/constants";
 import { getRagaIndex } from "../core/helpers";
 import { ragaMap } from "../core/ragaMap";
 
-export const CONTROL_ROOT = 0;
-export const LABEL_RAGA_NAME = 1;
-const LABEL_RAGA_LAYOUT = 2;
+const CONTROL_ROOT = 0;
+const LABEL_RAGA_NAME = 1;
+const CONTROL_HARMONY = 2;
 const CONTROL_HEAD = 3;
 const CONTROL_MID = 4;
 const CONTROL_TAIL = 5;
@@ -14,6 +14,7 @@ const CONTROL_SKIP_MA = 8;
 const CONTROL_SKIP_PA = 9;
 const CONTROL_SKIP_DA = 10;
 const CONTROL_SKIP_NI = 11;
+const LABEL_RAGA_LAYOUT = 12;
 
 const isControl = (control) => control !== LABEL_RAGA_NAME && control != LABEL_RAGA_LAYOUT;
 
@@ -21,9 +22,8 @@ const headNames = ["R1-G1 Weird", "R1-G2 Arabic", "R1-G3 Gaulam", "R2-G2 Minor",
 const tailNames = ["D1-N1 Weird", "D1-N2 Arabic", "D1-N3 Gaulam", "D2-N2 Minor", "D2-N3 Major", "D3-N3 Jazz"];
 
 // globals
-export var controlValues = [-1, -1, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0];
+export var controlValues = [-1, 1, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, -1];
 export var currentRaga = ragaMap[0];
-var paramsToggle = true;
 
 export function setCurrentRaga(index) {
   currentRaga = ragaMap[index];
@@ -42,8 +42,10 @@ export var PluginParameters = [
     type: "text",
   },
   {
-    name: "Swara Positions",
-    type: "text",
+    name: "Harmony",
+    type: "menu",
+    valueStrings: ["None", "Seconds", "Thirds", "Fourths", "Fifths", "Sixths", "Sevenths", "Octave"],
+    defaultValue: controlValues[CONTROL_HARMONY],
   },
   {
     name: "Head",
@@ -93,32 +95,37 @@ export var PluginParameters = [
     type: "checkbox",
     defaultValue: controlValues[CONTROL_SKIP_NI],
   },
+  {
+    name: "Swara Positions",
+    type: "text",
+  },
 ];
 
 // Scripter API
+var paramsChanged = false;
 export function ParameterChanged(param, value) {
+  Trace(param + " changed to -" + value + "isControl=" + !isControl(param));
   if (!isControl(param)) {
     return;
   }
-  controlValues[param] = value;
-  // Trace(param + "-" + value);
+  if (controlValues[param] !== value) {
+    paramsChanged = true;
+    controlValues[param] = value;
+  }
   const ragaNumber = getRagaIndex(controlValues[CONTROL_HEAD], controlValues[CONTROL_MID], controlValues[CONTROL_TAIL]);
   setCurrentRaga(ragaNumber);
   const label = "Melakartha Raga-" + currentRaga.name;
-  paramsToggle = !paramsToggle;
-  // Trace("Param Changed " + label + ":" + currentRaga.layout);
+
+  // Change labels;
   PluginParameters[LABEL_RAGA_NAME].name = label;
   PluginParameters[LABEL_RAGA_LAYOUT].name = currentRaga.getLayout(getSkippedNotes());
 }
 
-export function getParamsToggle() {
-  return paramsToggle;
-}
+export const hasParamsChanged = () => paramsChanged;
+export const resetParamsChangedState = () => (paramsChanged = false);
 
-export function getRoot() {
-  return controlValues[CONTROL_ROOT];
-}
+export const getRoot = () => controlValues[CONTROL_ROOT];
 
-export function getSkippedNotes() {
-  return [0, ...controlValues.slice(6)];
-}
+export const getHarmony = () => controlValues[CONTROL_HARMONY];
+
+export const getSkippedNotes = () => [0, ...controlValues.slice(6)];

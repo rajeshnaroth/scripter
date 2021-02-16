@@ -33,10 +33,18 @@ const rootNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "
 const swarams = ["SA", "RI", "GA", "MA", "PA", "DA", "NI"];
 
 // returns 0 == sa, 1 == ri and so on
-function getSwaramIndex(pitch, root) {
+function getSwaramNumber(pitch, root) {
   const note = sanitizePitch(pitch + NNOTES - root) % NNOTES;
   const swaramIndexMap = [0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6];
   return swaramIndexMap[note];
+}
+
+function getSwaramHarmony(swaramNumber, harmony) {
+  return (swaramNumber + harmony) % 7;
+}
+
+function getSwaramHarmonyOctave(swaramNumber, harmony) {
+  return swaramNumber + harmony > 6 ? 1 : 0;
 }
 
 const isBetween = (val, val1, val2) => val >= val1 && val <= val2;
@@ -54,15 +62,29 @@ function getRagaIndex(head, ma, tail) {
   return ma * NRAGAS_HALF + head * 6 + tail;
 }
 
-function westernToRagaNote(pitch, root, currentRaga, skippedNotes) {
-  let swaraIndex = getSwaramIndex(pitch, root);
+function getSubstitution(swaraIndex, skippedNotes, ascending) {
   const skipSwara = Boolean(skippedNotes[swaraIndex]);
-  if (skipSwara) {
-    swaraIndex = (swaraIndex + 1) % 7;
+  if (!skipSwara) {
+    // no need to skip
+    return swaraIndex;
   }
+  const newIndex = ascending ? (swaraIndex + 1) % 7 : (swaraIndex - 1) % 7;
+  return newIndex;
+}
+
+function westernToRagaNote(pitch, root, currentRaga, ascending, skippedNotes, harmony) {
+  let swaram = getSwaramNumber(pitch, root);
+  let octave = 0;
+  if (harmony > 0) {
+    octave = getSwaramHarmonyOctave(swaram, harmony); // get octave before mutating swaram value in the next line
+    swaram = getSwaramHarmony(swaram, harmony);
+  }
+  const swaraIndex = getSubstitution(swaram, skippedNotes, ascending);
+
   const swaramOffset = currentRaga.scale[swaraIndex];
   const firstNoteInOctave = Math.floor((pitch - root) / 12) * 12 + swaramOffset;
-  return sanitizePitch(firstNoteInOctave + root);
+
+  return sanitizePitch(firstNoteInOctave + root + octave * 12);
 }
 
 const ragaNames = [
@@ -184,7 +206,7 @@ const ragaMap = ragaNames.map((ragaName, index) => {
 
 const CONTROL_ROOT = 0;
 const LABEL_RAGA_NAME = 1;
-const LABEL_RAGA_LAYOUT = 2;
+const CONTROL_HARMONY = 2;
 const CONTROL_HEAD = 3;
 const CONTROL_MID = 4;
 const CONTROL_TAIL = 5;
@@ -194,6 +216,7 @@ const CONTROL_SKIP_MA = 8;
 const CONTROL_SKIP_PA = 9;
 const CONTROL_SKIP_DA = 10;
 const CONTROL_SKIP_NI = 11;
+const LABEL_RAGA_LAYOUT = 12;
 
 const isControl = (control) => control !== LABEL_RAGA_NAME && control != LABEL_RAGA_LAYOUT;
 
@@ -201,9 +224,8 @@ const headNames = ["R1-G1 Weird", "R1-G2 Arabic", "R1-G3 Gaulam", "R2-G2 Minor",
 const tailNames = ["D1-N1 Weird", "D1-N2 Arabic", "D1-N3 Gaulam", "D2-N2 Minor", "D2-N3 Major", "D3-N3 Jazz"];
 
 // globals
-var controlValues = [-1, -1, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0];
+var controlValues = [-1, 1, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, -1];
 var currentRaga = ragaMap[0];
-var paramsToggle = true;
 
 function setCurrentRaga(index) {
   currentRaga = ragaMap[index];
@@ -222,8 +244,10 @@ var PluginParameters = [
     type: "text",
   },
   {
-    name: "Swara Positions",
-    type: "text",
+    name: "Harmony",
+    type: "menu",
+    valueStrings: ["None", "Seconds", "Thirds", "Fourths", "Fifths", "Sixths", "Sevenths", "Octave"],
+    defaultValue: controlValues[CONTROL_HARMONY],
   },
   {
     name: "Head",
@@ -273,39 +297,43 @@ var PluginParameters = [
     type: "checkbox",
     defaultValue: controlValues[CONTROL_SKIP_NI],
   },
+  {
+    name: "Swara Positions",
+    type: "text",
+  },
 ];
 
 // Scripter API
+var paramsChanged = false;
 function ParameterChanged(param, value) {
+  Trace(param + " changed to -" + value + "isControl=" + !isControl(param));
   if (!isControl(param)) {
     return;
   }
-  controlValues[param] = value;
-  // Trace(param + "-" + value);
+  if (controlValues[param] !== value) {
+    paramsChanged = true;
+    controlValues[param] = value;
+  }
   const ragaNumber = getRagaIndex(controlValues[CONTROL_HEAD], controlValues[CONTROL_MID], controlValues[CONTROL_TAIL]);
   setCurrentRaga(ragaNumber);
-  const label = "Raga-" + currentRaga.name;
-  paramsToggle = !paramsToggle;
-  // Trace("Param Changed " + label + ":" + currentRaga.layout);
+  const label = "Melakartha Raga-" + currentRaga.name;
+
+  // Change labels;
   PluginParameters[LABEL_RAGA_NAME].name = label;
   PluginParameters[LABEL_RAGA_LAYOUT].name = currentRaga.getLayout(getSkippedNotes());
 }
 
-function getParamsToggle() {
-  return paramsToggle;
-}
+const hasParamsChanged = () => paramsChanged;
+const resetParamsChangedState = () => (paramsChanged = false);
 
-function getRoot() {
-  return controlValues[CONTROL_ROOT];
-}
+const getRoot = () => controlValues[CONTROL_ROOT];
 
-function getSkippedNotes() {
-  return [0, ...controlValues.slice(6)];
-}
+const getHarmony = () => controlValues[CONTROL_HARMONY];
 
-/* global UpdatePluginParameters, NoteOn, Trace */
+const getSkippedNotes = () => [0, ...controlValues.slice(6)];
 
-let prevParamsToggle = false;
+/* global UpdatePluginParameters, NoteOn, NoteOff, Trace */
+
 let lastPitch = -1;
 let ascending = true;
 
@@ -315,23 +343,33 @@ var NeedsTimingInfo = true; // required to trigger ProcessMidi
 // Scripter API
 function ProcessMIDI() {
   // Update Raga Labels if params have changed
-  if (prevParamsToggle !== getParamsToggle()) {
-    prevParamsToggle = getParamsToggle();
-    Trace("Update label to " + prevParamsToggle);
+  if (hasParamsChanged()) {
+    Trace("Params changed. Updating labels");
+    resetParamsChangedState();
     UpdatePluginParameters();
   }
 }
 
 // Scripter API
 function HandleMIDI(event) {
+  if (!(event instanceof NoteOn || event instanceof NoteOff)) {
+    event.send();
+    return;
+  }
   if (event instanceof NoteOn) {
     ascending = event.pitch > lastPitch;
     lastPitch = event.pitch;
   }
   const root = getRoot();
-  event.pitch = westernToRagaNote(event.pitch, root, currentRaga, getSkippedNotes());
-  Trace(`Root=${root} Current=${lastPitch} New=${event.pitch} Ascending=${ascending}`);
+  event.pitch = westernToRagaNote(event.pitch, root, currentRaga, ascending, getSkippedNotes());
+  // Trace(`Root=${root} Current=${lastPitch} New=${event.pitch} Ascending=${ascending}`);
   event.send();
+  event.trace();
+  if (getHarmony() > 0) {
+    event.pitch = westernToRagaNote(event.pitch, root, currentRaga, ascending, getSkippedNotes(), getHarmony());
+    event.trace();
+    event.send();
+  }
 }
 
 // Scripter API
