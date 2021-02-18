@@ -16,9 +16,17 @@ export default [
     },
   },
   {
-    input: "./src/pan-delay/main.js",
+    input: "./src/inversions/main.js",
     output: {
-      file: "./dist/pan-delay.js",
+      file: "./dist/inversions.js",
+      format: "cjs",
+      name: "bundle",
+    },
+  },
+  {
+    input: "./src/gamakam/main.js",
+    output: {
+      file: "./dist/gamakam.js",
       format: "cjs",
       name: "bundle",
     },

@@ -104,7 +104,7 @@ export var PluginParameters = [
 // Scripter API
 var paramsChanged = false;
 export function ParameterChanged(param, value) {
-  Trace(param + " changed to -" + value + "isControl=" + !isControl(param));
+  // Trace(param + " changed to -" + value + "isControl=" + !isControl(param));
   if (!isControl(param)) {
     return;
   }

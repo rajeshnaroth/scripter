@@ -3,5 +3,7 @@ import { getSwaramNumber } from "./utils/getSwaramNumber";
 import { toNoteName } from "./utils/toNoteName";
 import { getRagaIndex } from "./utils/getRagaIndex";
 import { westernToRagaNote } from "./utils/westernToRagaNote";
+import { chordBuffer } from "./utils/chordBuffer";
+import { getLength } from "./utils/getLength";
 
-export { sanitizePitch, getSwaramNumber, toNoteName, getRagaIndex, westernToRagaNote };
+export { chordBuffer, sanitizePitch, getLength, toNoteName, getRagaIndex, getSwaramNumber, westernToRagaNote };
